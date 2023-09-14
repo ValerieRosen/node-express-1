@@ -1,18 +1,48 @@
-const express = require('express');
-let axios = require('axios');
-var app = express();
+const express = require("express");
+const axios = require("axios");
+const ExpressError = require("./expressError");
+const app = express();
 
-app.post('/', function(req, res, next) {
+app.use(express.json());
+
+const USER_API = "https://api.github.com/users";
+
+app.post("/", async function (req, res, next) {
   try {
-    let results = req.body.developers.map(async d => {
-      return await axios.get(`https://api.github.com/users/${d}`);
-    });
-    let out = results.map(r => ({ name: r.data.name, bio: r.data.bio }));
+    let promises = req.body.developers.map((developer) =>
+      axios.get(`${USER_API}/${developer}`)
+    );
 
-    return res.send(JSON.stringify(out));
-  } catch {
-    next(err);
+    let results = await Promise.all(promises);
+
+    let out = results.map((r) => ({
+      name: r.data.name,
+      bio: r.data.bio,
+    }));
+
+    return res.json(out);
+  } catch (err) {
+    return next(err);
   }
 });
 
-app.listen(3000);
+app.use(function (req, res, next) {
+  const err = new ExpressError("Not Found", 400);
+
+  return next(err);
+});
+
+app.use(function (err, req, res, next) {
+  let status = err.status || 500;
+
+  return res.status(status).json({
+    status,
+    message: err.message,
+  });
+});
+
+app.listen(3000, function () {
+  console.log("server listening on 3000");
+});
+
+module.exports = app;
